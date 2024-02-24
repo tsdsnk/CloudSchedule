@@ -89,7 +89,7 @@ public class DAGNode extends Cloudlet {
     }
 
     public void removePre(DAGNode pre){
-        pre.nextletlist.remove(this);
+        // 这里保留了从前面节点找其后继的能力
         preletlist.remove(pre);
     }
 

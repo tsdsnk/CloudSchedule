@@ -17,12 +17,28 @@ import java.util.*;
 
 public class CloudSimExample {
 
+    private static final int DAGLetNum = 10;
+    private static final int[] DAGLetNodeNum = {6, 10, 20};
+    private static final double[] pDAGLetNodeNum = {0.3, 0.5, 0.2};
+    private static final int maxFork = 3;
+    private static final int[] merge = {1, 2};
+    private static final double[] pmerge = {0.8, 0.2};
+    private static final long[][] DAGNodeLength = {{10000, 100, 100}, {40000, 300, 300}, {80000, 600, 600}};
+    private static final int pesOfDAGNode = 1;
+    private static double[] pDAGNodeLength = {0.4, 0.3, 0.3};
+    private static double coefficientOfTime = 5;
+
+
+
+
+
+
+
     public static Random random;
 
     static {
         random = new Random();
         random.setSeed(123456);
-        DAGLetFactory.setRandom(random);
     }
 
     public static void main(String[] args){
@@ -39,7 +55,7 @@ public class CloudSimExample {
 
             AbstractDAGBroker broker = new SimpleDAGBroker("simple");
             List<Vm> vmList = createVM(broker.getId(), 6);
-            List<DAGLet> DAGLets = generateDAGlet(broker.getId(), 1);
+            List<DAGLet> DAGLets = generateDAGletList(broker.getId(), userMips(vmList));
             List<Cloudlet> totallist = new LinkedList<>();
             for(DAGLet let : DAGLets){
                 totallist.addAll(let.getAll());
@@ -54,53 +70,79 @@ public class CloudSimExample {
             printCloudletList(newList);
 
         }catch (Exception e){
-            Log.printLine("!!! Expected Error " + e.getMessage());
+            Log.printLine("!!! Expected Error: " + e.getMessage());
         }
     }
 
-    public static List<DAGLet> generateDAGlet(int userId, int letNum){
+    public static List<DAGLet> generateDAGletList(int userId, long mips){
         List<DAGLet> list = new LinkedList<>();
-        DAGNodeFactory nodeFactory = new DAGNodeFactory();
-//        double[] p = {0.8, 0.2};
-//        DAGLetFactory letFactory = new DAGLetFactory(3, 3, 2, p, nodeFactory);
-//        for(int i=0; i<letNum; i++){
-//            DAGLet let = letFactory.generate();
-//            let.setUserId(userId);
-//            list.add(let);
-//        }
-
-        DAGNode node1, node2, node3, node4;
-        long length = 40000;
-        long fileSize = 300;
-        long outputSize = 300;
-        int pesNumber = 1;
-        UtilizationModel utilizationModel = new UtilizationModelFull();
-        node1 = new DAGNode(length, pesNumber, fileSize, outputSize, utilizationModel, utilizationModel, utilizationModel);
-        node2 = new DAGNode(2*length, pesNumber, fileSize, outputSize, utilizationModel, utilizationModel, utilizationModel);
-        node3 = new DAGNode(length, pesNumber, fileSize, outputSize, utilizationModel, utilizationModel, utilizationModel);
-        node4 = new DAGNode(length, pesNumber, fileSize, outputSize, utilizationModel, utilizationModel, utilizationModel);
-        node1.linkAfter(node3);
-        node1.linkAfter(node2);
-        node2.linkAfter(node3);
-        LinkedList<DAGNode> list1 = new LinkedList<>();
-        list1.add(node1);
-        list1.add(node2);
-        list1.add(node3);
-        LinkedList<DAGNode> list2 = new LinkedList<>();
-        list2.add(node3);
-        DAGLet let = new DAGLet(node1, list2, list1);
-        let.setUserId(userId);
-        list.add(let);
-        LinkedList<DAGNode> list3 = new LinkedList<>();
-        LinkedList<DAGNode> list4 = new LinkedList<>();
-        list3.add(node4);
-        list4.add(node4);
-        let = new DAGLet(node4, list3, list4);
-        let.setUserId(userId);
-        list.add(let);
-
+        for(int i=0; i<DAGLetNum; i++){
+            list.add(generateDAGlet(userId, mips));
+        }
         return list;
     }
+
+
+    public static DAGLet generateDAGlet(int userId, long mips){
+        // 生成DAG图
+        DAGNode start = generateDAGNode();
+        DAGNode pre, next;
+        long length = start.getCloudletLength();
+        int maxNum = DAGLetNodeNum[testRand(pDAGLetNodeNum)];
+
+        ArrayList<DAGNode> nodelist = new ArrayList<>(maxNum);
+        ArrayList<DAGNode> all = new ArrayList<>(maxNum);
+        nodelist.add(start);
+        pre = start;
+        for(int i=1; i<maxNum/3; i++){
+            next = generateDAGNode();
+            pre.linkAfter(next);
+            nodelist.add(next);
+            length += next.getCloudletLength();
+            pre = next;
+        }
+        for(int i=maxNum/3; i<maxNum; i++){
+            next = generateDAGNode();
+            int degree = merge[testRand(pmerge)];
+            for(int j=0; j<degree; j++){
+                int id = (int)(random.nextDouble() * nodelist.size());
+                pre = nodelist.get(id);
+                if(!next.isFather(pre)){
+                    pre.linkAfter(next);
+                    if(pre.getNextNode().size() >= maxFork){
+                        all.add(nodelist.get(id));
+                        nodelist.remove(id);
+                    }
+                }
+            }
+            nodelist.add(next);
+            length += next.getCloudletLength();
+        }
+        all.addAll(nodelist);
+        DAGLet let = new DAGLet(start, all,  (long)(coefficientOfTime * length/mips));
+        let.setUserId(userId);
+        return let;
+    }
+
+    private static long userMips(List<Vm> vmList){
+        long mips = 0;
+        for(Vm vm : vmList){
+            mips += vm.getMips();
+        }
+        return mips;
+    }
+
+    public static DAGNode generateDAGNode(){
+        long[] nodeBase = DAGNodeLength[testRand(pDAGNodeLength)];
+        // 各项数据添加10%的波动
+        long length = (long)(nodeBase[0] * 0.9 + nodeBase[0] * 0.2 * random.nextDouble());
+        long fileSize = (long)(nodeBase[1] * 0.9 + nodeBase[1] * 0.2 * random.nextDouble());
+        long outputSize = (long)(nodeBase[2] * 0.9 + nodeBase[2] * 0.2 * random.nextDouble());
+        int pesNumber = pesOfDAGNode;
+        UtilizationModel utilizationModel = new UtilizationModelFull();
+        return new DAGNode(length, pesNumber, fileSize, outputSize, utilizationModel, utilizationModel, utilizationModel);
+    }
+
 
     public static Datacenter generateDatacenter(){
         List<Host> hostList = new ArrayList<>();
@@ -196,29 +238,72 @@ public class CloudSimExample {
     }
 
     private static void printCloudletList(List<Cloudlet> list) {
-        int size = list.size();
-        Cloudlet cloudlet;
-
-        String indent = "    ";
-        Log.printLine();
-        Log.printLine("========== OUTPUT ==========");
-        Log.printLine("Cloudlet ID" + indent + "STATUS" + indent +
-                "Data center ID" + indent + "VM ID" + indent + indent + "Time" + indent + "Start Time" + indent + "Finish Time");
-
-        DecimalFormat dft = new DecimalFormat("###.##");
-        for (int i = 0; i < size; i++) {
-            cloudlet = list.get(i);
-            Log.print(indent + cloudlet.getCloudletId() + indent + indent);
-
-            if (cloudlet.getCloudletStatus() == Cloudlet.SUCCESS){
-                Log.print("SUCCESS");
-
-                Log.printLine( indent + indent + cloudlet.getResourceId() + indent + indent + indent + cloudlet.getVmId() +
-                        indent + indent + indent + dft.format(cloudlet.getActualCPUTime()) +
-                        indent + indent + dft.format(cloudlet.getExecStartTime())+ indent + indent + indent + dft.format(cloudlet.getFinishTime()));
+        List<DAGLet> letList = new ArrayList<>(DAGLetNum);
+        for(Cloudlet cloudlet : list){
+            DAGNode node = (DAGNode) cloudlet;
+            if(!letList.contains(node.getDAGLet())){
+                letList.add(node.getDAGLet());
             }
         }
+        Log.printLine("===================  OUTPUT  ========================");
+        for(int i=0; i<DAGLetNum; i++){
+            printDAGLet(letList.get(i));
+            Log.printLine();
+        }
 
+    }
+
+    private static void printDAGLet(DAGLet let){
+        List<DAGNode> visit = new LinkedList<>();
+        List<DAGNode> finish = new LinkedList<>();
+        Log.printLine("========================================================================");
+        Log.printLine("|**********  node struct of DAGLet " + let.getId() + " ***************");
+        Stack<DAGNode> stack = new Stack<>();
+        stack.push(let.getStart());
+        while(!stack.isEmpty()){
+            DAGNode node = stack.pop();
+            if(!visit.contains(node)){
+                visit.add(node);
+                Log.format("|nodeID %d   length %d  filesize %d  output %d   ||   ", node.getCloudletId(), node.getCloudletLength(), node.getCloudletFileSize(), node.getCloudletOutputSize());
+                if(node.isEnd()){
+                    finish.add(node);
+                    Log.print("\n");
+                    continue;
+                }
+                for(DAGNode next : node.getNextNode()){
+                    if(!visit.contains(next)){
+                        stack.push(next);
+                    }
+                    Log.print(node.getCloudletId() + "->" + next.getCloudletId() + " ");
+                }
+                Log.print("\n");
+
+            }
+        }
+        Log.printLine("|****************************");
+        Log.print("|finish  ");
+        for(DAGNode node : finish){
+            Log.print(node.getCloudletId() + " ");
+        }
+        Log.print("\n");
+        Log.format("|%16s  %16s  %16s  %10s  %16s  %16s  %16s|\n", "LetID-NodeId", "Status", "Datacenter", "VmId", "Time", "Start time", "Finish time");
+        for(DAGNode node : let.getAll()){
+            Log.format("|%16s  %16s  %16d  %10d  %16.2f  %16.2f  %16.2f|\n",
+                     let.getId()+"-"+ node.getCloudletId(), node.getCloudletStatusString(), node.getResourceId(), node.getVmId(),
+                    node.getActualCPUTime(), node.getExecStartTime(), node.getFinishTime());
+        }
+        Log.printLine("|=======================================================================================================================|");
+    }
+
+    private static int testRand(double[] p){
+        double q = random.nextDouble();
+        for(int i=0; i<p.length; i++){
+            if(q < p[i]){
+                return i;
+            }
+            q -= p[i];
+        }
+        return p.length - 1;
     }
 
 

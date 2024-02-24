@@ -1,5 +1,6 @@
 package org.cloudbus.cloudsim.examples.schedule;
 
+
 import org.cloudbus.cloudsim.Cloudlet;
 import org.cloudbus.cloudsim.DatacenterBroker;
 import org.cloudbus.cloudsim.Log;
@@ -38,7 +39,28 @@ public abstract class AbstractDAGBroker extends DatacenterBroker {
         return list;
     }
 
-    public abstract void bindCloudletsToVms();
+    protected boolean isAvailable(DAGNode node, Integer vmId){
+        Vm vm = VmList.getById(vmList, vmId);
+        return node.getNumberOfPes() <= vm.getNumberOfPes();
+    }
+
+    protected boolean isAvailable(DAGNode node, Vm vm){
+        return node.getNumberOfPes() <= vm.getNumberOfPes();
+    }
+
+    protected List<Vm> getAvailableVm(DAGNode node){
+        List<Vm> list = new LinkedList<>();
+        for(Vm vm : vmList){
+            if(isAvailable(node, vm)){
+                list.add(vm);
+            }
+        }
+        return list;
+    }
+
+
+
+    protected abstract void bindCloudletsToVms();
 
 
     @Override
@@ -55,7 +77,7 @@ public abstract class AbstractDAGBroker extends DatacenterBroker {
                 vm = getVmsCreatedList().get(0);
                 Log.printLine("******************   unallocated cloudlet ****************");
             }else{
-                vm = VmList.getById(getVmList(), cloudlet.getCloudletId());
+                vm = VmList.getById(getVmList(), cloudlet.getVmId());
                 if(vm == null){
                     Log.printConcatLine(CloudSim.clock(), ": ", getName(), ": Postponing execution of cloudlet ",
                             cloudlet.getCloudletId(), ": bount VM not available");
@@ -68,7 +90,7 @@ public abstract class AbstractDAGBroker extends DatacenterBroker {
 
         for(DAGLet let : DAGletlist){
             DAGNode node = let.getStart();
-            vm = VmList.getById(getVmList(), node.getCloudletId());
+            vm = VmList.getById(getVmList(), node.getVmId());
 
             if (!Log.isDisabled()) {
                 Log.printConcatLine(CloudSim.clock(), ": ", getName(), ": Sending cloudlet ",
@@ -90,8 +112,8 @@ public abstract class AbstractDAGBroker extends DatacenterBroker {
         cloudletsSubmitted--;
         List<DAGNode> availableList =  removeNode(cloudlet);
         for(DAGNode node : availableList){
-            Vm vm = VmList.getById(getVmList(), node.getCloudletId());
-            send(getVmsToDatacentersMap().get(vm.getId()), 2*CloudSim.getMinTimeBetweenEvents(), CloudSimTags.CLOUDLET_SUBMIT, node);
+            Vm vm = VmList.getById(getVmList(), node.getVmId());
+            sendNow(getVmsToDatacentersMap().get(vm.getId()), CloudSimTags.CLOUDLET_SUBMIT, node);
             cloudletsSubmitted++;
             getCloudletSubmittedList().add(node);
         }
