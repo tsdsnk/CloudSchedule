@@ -21,6 +21,7 @@ public class SimpleDAGBroker extends AbstractDAGBroker{
 
     @Override
     protected Map<Vm, List<DAGNode>> bindCloudletsToVms() {
+        int index = 0;
         HashMap<Vm, List<DAGNode>> schedule = new HashMap<>();
         for(int i=0; i<vmList.size(); i++){
             schedule.put(vmList.get(i), new LinkedList<>());
@@ -33,8 +34,9 @@ public class SimpleDAGBroker extends AbstractDAGBroker{
                 break;
             }
             for(GraphNode node : available){
-                bindGraghNode(node, 0);
-                schedule.get(VmList.getById(vmList, 0)).add(node.getTask());
+                bindGraghNode(node, vmList.get(index).getId());
+                schedule.get(VmList.getById(vmList, vmList.get(index).getId())).add(node.getTask());
+                index = (index + 1) % vmList.size();
             }
         }
 
