@@ -2,6 +2,8 @@ package org.cloudbus.cloudsim.examples;
 
 import org.cloudbus.cloudsim.*;
 import org.cloudbus.cloudsim.core.CloudSim;
+import org.cloudbus.cloudsim.core.SimEntity;
+import org.cloudbus.cloudsim.core.SimEvent;
 import org.cloudbus.cloudsim.examples.DAG.DAGLet;
 import org.cloudbus.cloudsim.examples.DAG.DAGNode;
 import org.cloudbus.cloudsim.examples.schedule.AbstractDAGBroker;
@@ -34,6 +36,7 @@ public class CloudSimExample {
 
             Datacenter datacenter = generateDatacenter();
 
+
             AbstractDAGBroker broker = new SimpleDAGBroker("simple");
             List<Vm> vmList = createVM(broker.getId(), 6);
             List<DAGLet> DAGLets = generateDAGlet(broker.getId(), 1);
@@ -41,11 +44,11 @@ public class CloudSimExample {
             for(DAGLet let : DAGLets){
                 totallist.addAll(let.getAll());
             }
-
-            broker.submitCloudletList(totallist);
             broker.submitVmList(vmList);
-            broker.bindCloudletsToVms();
+            broker.submitCloudletList(totallist);
+
             CloudSim.startSimulation();
+
             List<Cloudlet> newList = broker.getCloudletReceivedList();
             CloudSim.stopSimulation();
             printCloudletList(newList);
@@ -58,13 +61,44 @@ public class CloudSimExample {
     public static List<DAGLet> generateDAGlet(int userId, int letNum){
         List<DAGLet> list = new LinkedList<>();
         DAGNodeFactory nodeFactory = new DAGNodeFactory();
-        double[] p = {0.8, 0.2};
-        DAGLetFactory letFactory = new DAGLetFactory(10, 3, 2, p, nodeFactory);
-        for(int i=0; i<letNum; i++){
-            DAGLet let = letFactory.generate();
-            let.setUserId(userId);
-            list.add(let);
-        }
+//        double[] p = {0.8, 0.2};
+//        DAGLetFactory letFactory = new DAGLetFactory(3, 3, 2, p, nodeFactory);
+//        for(int i=0; i<letNum; i++){
+//            DAGLet let = letFactory.generate();
+//            let.setUserId(userId);
+//            list.add(let);
+//        }
+
+        DAGNode node1, node2, node3, node4;
+        long length = 40000;
+        long fileSize = 300;
+        long outputSize = 300;
+        int pesNumber = 1;
+        UtilizationModel utilizationModel = new UtilizationModelFull();
+        node1 = new DAGNode(length, pesNumber, fileSize, outputSize, utilizationModel, utilizationModel, utilizationModel);
+        node2 = new DAGNode(2*length, pesNumber, fileSize, outputSize, utilizationModel, utilizationModel, utilizationModel);
+        node3 = new DAGNode(length, pesNumber, fileSize, outputSize, utilizationModel, utilizationModel, utilizationModel);
+        node4 = new DAGNode(length, pesNumber, fileSize, outputSize, utilizationModel, utilizationModel, utilizationModel);
+        node1.linkAfter(node3);
+        node1.linkAfter(node2);
+        node2.linkAfter(node3);
+        LinkedList<DAGNode> list1 = new LinkedList<>();
+        list1.add(node1);
+        list1.add(node2);
+        list1.add(node3);
+        LinkedList<DAGNode> list2 = new LinkedList<>();
+        list2.add(node3);
+        DAGLet let = new DAGLet(node1, list2, list1);
+        let.setUserId(userId);
+        list.add(let);
+        LinkedList<DAGNode> list3 = new LinkedList<>();
+        LinkedList<DAGNode> list4 = new LinkedList<>();
+        list3.add(node4);
+        list4.add(node4);
+        let = new DAGLet(node4, list3, list4);
+        let.setUserId(userId);
+        list.add(let);
+
         return list;
     }
 
@@ -186,5 +220,8 @@ public class CloudSimExample {
         }
 
     }
+
+
+
 
 }

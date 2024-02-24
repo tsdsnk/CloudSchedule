@@ -89,6 +89,7 @@ public class DAGNode extends Cloudlet {
     }
 
     public void removePre(DAGNode pre){
+        pre.nextletlist.remove(this);
         preletlist.remove(pre);
     }
 

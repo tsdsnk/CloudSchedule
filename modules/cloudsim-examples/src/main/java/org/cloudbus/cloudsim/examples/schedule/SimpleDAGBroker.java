@@ -11,9 +11,11 @@ public class SimpleDAGBroker extends AbstractDAGBroker{
     @Override
     public void bindCloudletsToVms() {
         for(Cloudlet node : cloudletList){
-
+            if(node.getCloudletId() == 1){
+                node.setVmId(1);
+                break;
+            }
             node.setVmId(0);
-            node.setSubmissionTime(100.0);
         }
     }
 }
