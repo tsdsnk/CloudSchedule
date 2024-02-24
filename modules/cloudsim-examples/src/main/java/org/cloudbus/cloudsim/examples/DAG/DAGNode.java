@@ -11,8 +11,8 @@ public class DAGNode extends Cloudlet {
     private static int AllocateId = 0;
     private DAGLet DAGLet;
 
-    private LinkedList<DAGNode> preletlist = new LinkedList<>();
-    private LinkedList<DAGNode> nextletlist = new LinkedList<>();
+    private List<DAGNode> preletlist = new LinkedList<>();
+    private List<DAGNode> nextletlist = new LinkedList<>();
 
 
     public DAGNode (final long cloudletLength,
@@ -25,7 +25,13 @@ public class DAGNode extends Cloudlet {
                     ){
         super(AllocateId, cloudletLength, pesNumber, cloudletFileSize, cloudletOutputSize, utilizationModelCpu, utilizationModelRam, utilizationModelBw);
         AllocateId++;
+    }
 
+    public DAGNode(DAGNode old){
+        super(old.getCloudletId(), old.getCloudletLength(), old.getNumberOfPes(), old.getCloudletFileSize(),
+                old.getCloudletOutputSize(), old.getUtilizationModelCpu(), old.getUtilizationModelRam(), old.getUtilizationModelBw());
+        DAGLet = null;
+        setUserId(old.getUserId());
     }
 
 
@@ -59,6 +65,15 @@ public class DAGNode extends Cloudlet {
             linkPre(node);
         }
     }
+
+    public void setPreletlist(List<DAGNode> list){
+        preletlist = list;
+    }
+
+    public void setNextletlist(List<DAGNode> list){
+        nextletlist = list;
+    }
+
 
     public void linkAfter(DAGNode nextlet){
         this.nextletlist.add(nextlet);

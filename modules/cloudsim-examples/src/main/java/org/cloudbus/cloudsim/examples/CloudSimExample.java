@@ -17,15 +17,31 @@ import java.util.*;
 
 public class CloudSimExample {
 
+    /** 生成DAG任务数目 */
     private static final int DAGLetNum = 10;
+
+    /** 每个DAG图包含的节点个数，及其对应概率 */
     private static final int[] DAGLetNodeNum = {6, 10, 20};
     private static final double[] pDAGLetNodeNum = {0.3, 0.5, 0.2};
+
+    /** DAG图中最大出度 */
     private static final int maxFork = 3;
+
+    /** DAG图中入度及其对应概率 */
     private static final int[] merge = {1, 2};
     private static final double[] pmerge = {0.8, 0.2};
+
+    /** DAG图中每个子任务的任务量(的基准值)，及其概率
+     * 会在随机后的大/中/小任务上添加最多10%的波动
+     * */
     private static final long[][] DAGNodeLength = {{10000, 100, 100}, {40000, 300, 300}, {80000, 600, 600}};
-    private static final int pesOfDAGNode = 1;
+
     private static double[] pDAGNodeLength = {0.4, 0.3, 0.3};
+
+    /** 子任务的CPU数，这里目前仅考虑了为1的情况，修改可能导致任务提交到虚拟机不能运行(因为虚拟机只有1个CPU) */
+    private static final int pesOfDAGNode = 1;
+
+    /** 预期完成时间与任务总时间的系数关系，这里总时间仅仅是将各个任务总量相加除以虚拟机处理能力，没有考虑DAG图结构 */
     private static double coefficientOfTime = 5;
 
 
@@ -49,13 +65,14 @@ public class CloudSimExample {
             boolean trace_flag = false;
             CloudSim.init(num_user, calendar, trace_flag);
 
-
             Datacenter datacenter = generateDatacenter();
-
 
             AbstractDAGBroker broker = new SimpleDAGBroker("simple");
             List<Vm> vmList = createVM(broker.getId(), 6);
             List<DAGLet> DAGLets = generateDAGletList(broker.getId(), userMips(vmList));
+
+
+
             List<Cloudlet> totallist = new LinkedList<>();
             for(DAGLet let : DAGLets){
                 totallist.addAll(let.getAll());
@@ -70,7 +87,7 @@ public class CloudSimExample {
             printCloudletList(newList);
 
         }catch (Exception e){
-            Log.printLine("!!! Expected Error: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -119,7 +136,7 @@ public class CloudSimExample {
             length += next.getCloudletLength();
         }
         all.addAll(nodelist);
-        DAGLet let = new DAGLet(start, all,  (long)(coefficientOfTime * length/mips));
+        DAGLet let = new DAGLet(start, all,  coefficientOfTime * length/mips);
         let.setUserId(userId);
         return let;
     }
@@ -256,15 +273,14 @@ public class CloudSimExample {
     private static void printDAGLet(DAGLet let){
         List<DAGNode> visit = new LinkedList<>();
         List<DAGNode> finish = new LinkedList<>();
-        Log.printLine("========================================================================");
-        Log.printLine("|**********  node struct of DAGLet " + let.getId() + " ***************");
+        Log.printLine("=============================  DAGLet " + let.getId() + " ================================================================================");
         Stack<DAGNode> stack = new Stack<>();
         stack.push(let.getStart());
         while(!stack.isEmpty()){
             DAGNode node = stack.pop();
             if(!visit.contains(node)){
                 visit.add(node);
-                Log.format("|nodeID %d   length %d  filesize %d  output %d   ||   ", node.getCloudletId(), node.getCloudletLength(), node.getCloudletFileSize(), node.getCloudletOutputSize());
+                Log.format("|nodeID %4d   length %6d  filesize %6d  output %6d   ||   ", node.getCloudletId(), node.getCloudletLength(), node.getCloudletFileSize(), node.getCloudletOutputSize());
                 if(node.isEnd()){
                     finish.add(node);
                     Log.print("\n");
@@ -280,12 +296,17 @@ public class CloudSimExample {
 
             }
         }
-        Log.printLine("|****************************");
+        Log.printLine("|");
         Log.print("|finish  ");
+        double maxtime = 0.0;
         for(DAGNode node : finish){
             Log.print(node.getCloudletId() + " ");
+            if(node.getFinishTime() > maxtime){
+                maxtime = node.getFinishTime();
+            }
         }
         Log.print("\n");
+        Log.format("|start:%.2f  finish:%.2f  total:%.2f expected:%.2f\n", let.getStart().getExecStartTime(), maxtime, maxtime-let.getStart().getExecStartTime(), let.getExpectedTime());
         Log.format("|%16s  %16s  %16s  %10s  %16s  %16s  %16s|\n", "LetID-NodeId", "Status", "Datacenter", "VmId", "Time", "Start time", "Finish time");
         for(DAGNode node : let.getAll()){
             Log.format("|%16s  %16s  %16d  %10d  %16.2f  %16.2f  %16.2f|\n",
