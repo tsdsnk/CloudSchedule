@@ -26,6 +26,7 @@ public abstract class AbstractDAGBroker extends DatacenterBroker {
     private Map<Vm, Boolean> vmWorking = new HashMap<>();
 
     private List<GraphNode> availableGraphNodeList = new LinkedList<>();
+    private Map<Vm, List<GraphNode>> vmAllocated = new HashMap<>();
 
 
     public AbstractDAGBroker(String name) throws Exception {
@@ -44,24 +45,55 @@ public abstract class AbstractDAGBroker extends DatacenterBroker {
         return list;
     }
 
-    protected void bindGraghNode(GraphNode node, int vmID){
-        node.bind(vmID);
-        availableGraphNodeList.remove(node);
-        for(GraphNode child : node.getChilds()){
-            if(child.isAvailable()){
-                availableGraphNodeList.add(child);
+    protected List<GraphNode> getFinishNode(){
+        List<GraphNode> list = new LinkedList<>();
+        for(GraphNode node : graphNodeList){
+            if(node.getTask().isEnd()){
+                list.add(node);
             }
         }
+        return list;
     }
+
+
+    protected Map<Vm, List<DAGNode>> getCurrentSchedule(){
+        Map<Vm, List<DAGNode>> schedule = new HashMap<>();
+        for(Vm vm : vmList){
+            List<DAGNode> task = new LinkedList<>();
+            for(GraphNode graphNode : vmAllocated.get(vm)){
+                task.add(graphNode.getTask());
+            }
+            schedule.put(vm, task);
+        }
+        return schedule;
+    }
+
+//    protected void bindGraghNode(GraphNode node, int vmID){
+//        node.bind(vmID);
+//        availableGraphNodeList.remove(node);
+//        for(GraphNode child : node.getChilds()){
+//            if(child.isAvailable()){
+//                availableGraphNodeList.add(child);
+//            }
+//        }
+//    }
 
     protected void resetGraghNode(){
         for(GraphNode node : graphNodeList){
-            node.unbind();
+            node.reset();
+        }
+        for(Vm vm : vmList){
+            vmAllocated.get(vm).clear();
         }
     }
 
     protected List<GraphNode> getAvailableGraphNodeList(){
-        return availableGraphNodeList;
+        return new LinkedList<>(availableGraphNodeList);
+    }
+
+    protected double getVmReadyTime(Vm vm){
+        List<GraphNode> taskList = vmAllocated.get(vm);
+        return taskList.isEmpty() ? 0 : taskList.get(taskList.size() - 1).getEstimateFinishTime();
     }
 
 
@@ -79,7 +111,7 @@ public abstract class AbstractDAGBroker extends DatacenterBroker {
 
 
 
-    protected abstract Map<Vm, List<DAGNode>>  bindCloudletsToVms();
+    protected abstract Map<Vm, List<DAGNode>> scheduleTask();
 
 
 
@@ -95,7 +127,7 @@ public abstract class AbstractDAGBroker extends DatacenterBroker {
         processDAGStruct();
 
         // 获取调度结果
-        schedule = bindCloudletsToVms();
+        schedule = scheduleTask();
 
 
         // 绑定虚拟机
@@ -213,6 +245,12 @@ public abstract class AbstractDAGBroker extends DatacenterBroker {
         List<GraphNode> unhandleGraphNode = new LinkedList<>();
         List<DAGLet> unhandleDAGLet = new LinkedList<>();
 
+        for(Vm vm : vmList){
+            if(!vmAllocated.containsKey(vm)){
+                vmAllocated.put(vm, new LinkedList<>());
+            }
+        }
+
         for(DAGNode cloudlet: letList){
             if(!DAGletlist.contains(cloudlet.getDAGLet())){
                 DAGletlist.add(cloudlet.getDAGLet());
@@ -248,7 +286,7 @@ public abstract class AbstractDAGBroker extends DatacenterBroker {
     // 用于DAG图
 
     enum Status{
-        UNBIND, BIND, REMOVE
+        UNBIND, BIND, ESTIMATE
     }
 
     protected class GraphNode{
@@ -260,6 +298,10 @@ public abstract class AbstractDAGBroker extends DatacenterBroker {
         private DAGNode task;
         private int vmId = -1;
         private double estimateExecTime;
+        private double estimateStartTime;
+        private double estimateFinishTime;
+
+        private Object info = null;
 
 
 
@@ -269,25 +311,62 @@ public abstract class AbstractDAGBroker extends DatacenterBroker {
 
 
 
-        private void bind(int vmId){
+
+        public void bind(int vmId){
             if(this.vmId == vmId){
                 return;
+            }else if(status == Status.BIND){
+                unbind();
             }
             this.vmId = vmId;
-            status = Status.BIND;
-            // 更新执行时间
             Vm vm = VmList.getById(vmList, vmId);
-            estimateExecTime = task.getCloudletLength()/vm.getMips();
-        }
-
-        public double estimateExecTime(){
-            if(vmId == -1){
-                Log.printLine("AbstractDAGBroker: Try to estimate exec time without bind on a machine!");
-                return Double.MAX_VALUE;
+            status = Status.BIND;
+            availableGraphNodeList.remove(this);
+            for(GraphNode child : childs){
+                if(child.isAvailable()){
+                    availableGraphNodeList.add(child);
+                }
             }
-            return estimateExecTime;
 
+            // 更新执行时间
+            estimateExecTime = estimateExecTime(vm);
+            estimateStartTime = estimateStartTime(vm);
+            estimateFinishTime = estimateStartTime + estimateExecTime + getUploadTime(vm);
+            vmAllocated.get(vm).add(this);
         }
+
+        public double getDownloadTime(Vm vm){
+            return 0.0;
+        }
+
+        public double getUploadTime(Vm vm){
+            return 0.0;
+        }
+
+
+        public double estimateExecTime(Vm vm){
+            return task.getCloudletLength()/vm.getMips();
+        }
+
+        public double estimateStartTime(Vm vm){
+            double maxTime = 0;
+            for(GraphNode father : fathers){
+                double fatherTime = father.getEstimateFinishTime();
+                if(maxTime < fatherTime){
+                    maxTime = fatherTime;
+                }
+            }
+            double vmReadyTime = getVmReadyTime(vm);
+            if(vmReadyTime >  maxTime){
+                return vmReadyTime + getDownloadTime(vm);
+            }else {
+                return maxTime + getDownloadTime(vm);
+            }
+        }
+        public double estimateFinishTime(Vm vm){
+            return  estimateStartTime(vm) + estimateExecTime(vm) + getUploadTime(vm);
+        }
+
 
 
         public List<GraphNode> getFathers(){
@@ -309,24 +388,57 @@ public abstract class AbstractDAGBroker extends DatacenterBroker {
         public void setChilds(List<GraphNode> childs){
             this.childs = childs;
         }
-//        public void remove(){
-//            status = Status.REMOVE;
-//        }
-        private void unbind(){
+
+        public void unbind(){
             status = Status.UNBIND;
+            Vm vm = VmList.getById(vmList, vmId);
+            vmAllocated.get(vm).remove(this);
             vmId = -1;
             estimateExecTime = Double.MAX_VALUE;
+            estimateStartTime = Double.MAX_VALUE;
+            estimateFinishTime = Double.MAX_VALUE;
+            for(GraphNode child : childs){
+                availableGraphNodeList.remove(child);
+            }
+            availableGraphNodeList.add(this);
+
         }
 
         public boolean isAvailable(){
             boolean flag = true;
             for(GraphNode father : fathers){
-                flag &= (father.status == Status.BIND);
+                flag &= (father.status != Status.UNBIND);
             }
             return flag;
         }
 
+        private void reset(){
+            status = Status.UNBIND;
+            vmId = -1;
+            estimateExecTime = Double.MAX_VALUE;
+            estimateStartTime = Double.MAX_VALUE;
+            estimateFinishTime = Double.MAX_VALUE;
+        }
 
+
+        public double getEstimateStartTime(){
+            return estimateStartTime;
+        }
+
+        public double getEstimateExecTime(){
+            return estimateExecTime;
+        }
+
+        public double getEstimateFinishTime(){
+            return estimateFinishTime;
+        }
+
+        public void mark(Object info){
+            this.info = info;
+        }
+        public Object getMarks(){
+            return info;
+        }
 
 
     }

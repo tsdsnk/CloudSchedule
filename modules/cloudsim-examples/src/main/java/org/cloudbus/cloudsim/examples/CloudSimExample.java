@@ -6,8 +6,7 @@ import org.cloudbus.cloudsim.core.SimEntity;
 import org.cloudbus.cloudsim.core.SimEvent;
 import org.cloudbus.cloudsim.examples.DAG.DAGLet;
 import org.cloudbus.cloudsim.examples.DAG.DAGNode;
-import org.cloudbus.cloudsim.examples.schedule.AbstractDAGBroker;
-import org.cloudbus.cloudsim.examples.schedule.SimpleDAGBroker;
+import org.cloudbus.cloudsim.examples.schedule.*;
 import org.cloudbus.cloudsim.provisioners.BwProvisionerSimple;
 import org.cloudbus.cloudsim.provisioners.PeProvisionerSimple;
 import org.cloudbus.cloudsim.provisioners.RamProvisionerSimple;
@@ -42,22 +41,14 @@ public class CloudSimExample {
     private static final int pesOfDAGNode = 1;
 
     /** 预期完成时间与任务总时间的系数关系，这里总时间仅仅是将各个任务总量相加除以虚拟机处理能力，没有考虑DAG图结构 */
-    private static double coefficientOfTime = 5;
+    private static double coefficientOfTime = 1.5;
 
+    private static Random random;
 
-
-
-
-
-
-    public static Random random;
-
-    static {
-        random = new Random();
-        random.setSeed(123456);
-    }
 
     public static void main(String[] args){
+        random = new Random();
+        random.setSeed(123456);
         Log.printLine("========  Simulation Begin ==========");
         try{
             int num_user = 1;
@@ -67,11 +58,16 @@ public class CloudSimExample {
 
             Datacenter datacenter = generateDatacenter();
 
-            AbstractDAGBroker broker = new SimpleDAGBroker("simple");
+
+            /**  调度方法  */
+
+//            AbstractDAGBroker broker = new SimpleDAGBroker("simple");
+//            AbstractDAGBroker broker = new MinMinDAGBroker("Min-Min");
+//            AbstractDAGBroker broker = new MaxMinDAGBroker("Max-Min");
+            AbstractDAGBroker broker = new HEFTDAGBroker("HEFT");
+
             List<Vm> vmList = createVM(broker.getId(), 6);
             List<DAGLet> DAGLets = generateDAGletList(broker.getId(), userMips(vmList));
-
-
 
             List<Cloudlet> totallist = new LinkedList<>();
             for(DAGLet let : DAGLets){
@@ -136,7 +132,7 @@ public class CloudSimExample {
             length += next.getCloudletLength();
         }
         all.addAll(nodelist);
-        DAGLet let = new DAGLet(start, all,  coefficientOfTime * length/mips);
+        DAGLet let = new DAGLet(start, all,  coefficientOfTime * DAGLetNum * length/mips);
         let.setUserId(userId);
         return let;
     }

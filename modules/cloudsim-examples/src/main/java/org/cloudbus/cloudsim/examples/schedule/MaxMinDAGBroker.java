@@ -3,16 +3,12 @@ package org.cloudbus.cloudsim.examples.schedule;
 import org.cloudbus.cloudsim.Vm;
 import org.cloudbus.cloudsim.examples.DAG.DAGNode;
 
-import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-public class MinMinDAGBroker extends AbstractDAGBroker{
+public class MaxMinDAGBroker extends AbstractDAGBroker{
 
-
-
-    public MinMinDAGBroker(String name) throws Exception{
+    public MaxMinDAGBroker (String name)throws Exception{
         super(name);
     }
 
@@ -26,36 +22,29 @@ public class MinMinDAGBroker extends AbstractDAGBroker{
             if(available.isEmpty()){
                 break;
             }
-            // 最小任务
-            GraphNode minTask = available.get(0);
-            long minTaskLength = minTask.getTask().getCloudletLength(), length;
+            // 最大任务
+            GraphNode maxTask = available.get(0);
+            long maxTaskLength = maxTask.getTask().getCloudletLength(), length;
 
             for(GraphNode node : available){
-                if((length = node.getTask().getCloudletLength()) < minTaskLength){
-                    minTaskLength = length;
-                    minTask = node;
+                if((length = node.getTask().getCloudletLength()) > maxTaskLength){
+                    maxTaskLength = length;
+                    maxTask = node;
                 }
             }
 
             // 最小时间
             Vm minVm = vmList.get(0);
-            double minTime = minTask.estimateFinishTime(minVm), time;
+            double minTime = maxTask.estimateFinishTime(minVm), time;
             for(Vm vm : vmList){
-                if((time = minTask.estimateFinishTime(vm)) < minTime){
+                if((time = maxTask.estimateFinishTime(vm)) < minTime){
                     minTime = time;
                     minVm = vm;
                 }
             }
-            minTask.bind(minVm.getId());
+            maxTask.bind(minVm.getId());
         }
         return getCurrentSchedule();
 
     }
-
-
-
-
 }
-
-
-
