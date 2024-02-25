@@ -43,6 +43,14 @@ public class CloudSimExample {
     /** 预期完成时间与任务总时间的系数关系，这里总时间仅仅是将各个任务总量相加除以虚拟机处理能力，没有考虑DAG图结构 */
     private static double coefficientOfTime = 1.5;
 
+    private static VmInfo[]  vmInfos = {
+            new VmInfo(2,10000, 512, 1000, 1000, 1),
+            new VmInfo(2,20000, 1024, 2000, 1000, 1),
+            new VmInfo(1,15000, 1024, 500, 1000, 1),
+            new VmInfo(1, 20000, 1024, 2000, 2000, 1)
+    };
+
+
     private static Random random;
 
 
@@ -64,7 +72,9 @@ public class CloudSimExample {
 //            AbstractDAGBroker broker = new SimpleDAGBroker("simple");
 //            AbstractDAGBroker broker = new MinMinDAGBroker("Min-Min");
 //            AbstractDAGBroker broker = new MaxMinDAGBroker("Max-Min");
-            AbstractDAGBroker broker = new HEFTDAGBroker("HEFT");
+//            AbstractDAGBroker broker = new HEFTDAGBroker("HEFT");
+            AbstractDAGBroker broker = new CPOPDAGBroker("CPOP");
+
 
             List<Vm> vmList = createVM(broker.getId(), 6);
             List<DAGLet> DAGLets = generateDAGletList(broker.getId(), userMips(vmList));
@@ -161,7 +171,7 @@ public class CloudSimExample {
         List<Host> hostList = new ArrayList<>();
 
         List<Pe> peList1 = new ArrayList<Pe>();
-        int mips = 1000;
+        int mips = 2000;
 
         peList1.add(new Pe(0, new PeProvisionerSimple(mips)));
         peList1.add(new Pe(1, new PeProvisionerSimple(mips)));
@@ -172,9 +182,9 @@ public class CloudSimExample {
         List<Pe> peList2 = new ArrayList<Pe>();
         peList2.add(new Pe(0, new PeProvisionerSimple(mips)));
         peList2.add(new Pe(1, new PeProvisionerSimple(mips)));
-        int ram = 2048; //host memory (MB)
+        int ram = 4096; //host memory (MB)
         long storage = 1000000; //host storage
-        int bw = 10000;
+        int bw = 20000;
 
         hostList.add(
                 new Host(
@@ -228,26 +238,34 @@ public class CloudSimExample {
         //Creates a container to store VMs. This list is passed to the broker later
         LinkedList<Vm> list = new LinkedList<Vm>();
 
-        //VM Parameters
-        long size = 10000; //image size (MB)
-        int ram = 512; //vm memory (MB)
-        int mips = 1000;
-        long bw = 1000;
-        int pesNumber = 1; //number of cpus
-        String vmm = "Xen"; //VMM name
-
-        //create VMs
-        Vm[] vm = new Vm[vms];
-
-        for(int i=0;i<vms;i++){
-            vm[i] = new Vm(i, userId, mips, pesNumber, ram, bw, size, vmm, new CloudletSchedulerSpaceShared());
-            //for creating a VM with a space shared scheduling policy for cloudlets:
-            //vm[i] = Vm(i, userId, mips, pesNumber, ram, bw, size, priority, vmm, new CloudletSchedulerSpaceShared());
-
-            list.add(vm[i]);
+        int id = 0;
+        for(int i=0; i<vmInfos.length; i++){
+            VmInfo info = vmInfos[i];
+            for(int j=0; j<info.vmNums; j++){
+                list.add(new Vm(id, userId, info.mips, info.pesNumber, info.ram, info.bw, info.size, "Vm"+id, new CloudletSchedulerSpaceShared()));
+                id++;
+            }
         }
 
+
         return list;
+    }
+
+    static class VmInfo{
+        int vmNums;
+        long size;
+        int ram;
+        int mips;
+        long bw;
+        int pesNumber;
+        public VmInfo(int vmNums, long size, int ram, int mips, long bw, int pesNumber){
+            this.vmNums = vmNums;
+            this.size = size;
+            this.ram = ram;
+            this.mips = mips;
+            this.bw = bw;
+            this.pesNumber = pesNumber;
+        }
     }
 
     private static void printCloudletList(List<Cloudlet> list) {
@@ -276,7 +294,10 @@ public class CloudSimExample {
             DAGNode node = stack.pop();
             if(!visit.contains(node)){
                 visit.add(node);
-                Log.format("|nodeID %4d   length %6d  filesize %6d  output %6d   ||   ", node.getCloudletId(), node.getCloudletLength(), node.getCloudletFileSize(), node.getCloudletOutputSize());
+                if(node.getStatus() != Cloudlet.SUCCESS){
+                    Log.print("\033[31;4m" + "UNSUCCESS Node " + "\033[0m");
+                }
+                Log.format("|nodeID %4d   length %6d  filesize %6d  output %6d   |%2d|   ", node.getCloudletId(), node.getCloudletLength(), node.getCloudletFileSize(), node.getCloudletOutputSize(), node.getNextNode().size());
                 if(node.isEnd()){
                     finish.add(node);
                     Log.print("\n");
@@ -286,7 +307,13 @@ public class CloudSimExample {
                     if(!visit.contains(next)){
                         stack.push(next);
                     }
-                    Log.print(node.getCloudletId() + "->" + next.getCloudletId() + " ");
+                    if(node.getFinishTime() > next.getExecStartTime()){
+                        Log.print("\033[31;4m" + node.getCloudletId() + "->" + next.getCloudletId() +  "\033[0m" + " " );
+                    }else{
+                        Log.print(node.getCloudletId() + "->" + next.getCloudletId() + " ");
+                    }
+
+
                 }
                 Log.print("\n");
 

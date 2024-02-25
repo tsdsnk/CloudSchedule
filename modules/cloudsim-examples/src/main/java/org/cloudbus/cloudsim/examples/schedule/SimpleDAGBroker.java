@@ -1,6 +1,7 @@
 package org.cloudbus.cloudsim.examples.schedule;
 
 import org.cloudbus.cloudsim.Cloudlet;
+import org.cloudbus.cloudsim.Log;
 import org.cloudbus.cloudsim.Vm;
 import org.cloudbus.cloudsim.examples.DAG.DAGNode;
 import org.cloudbus.cloudsim.lists.VmList;
@@ -27,6 +28,13 @@ public class SimpleDAGBroker extends AbstractDAGBroker{
         List<GraphNode> available;
         while(true){
             available = getAvailableGraphNodeList();
+
+            for(GraphNode node :available){
+                Log.print(node.getTask().getCloudletId() + " ");
+            }
+            Log.print("\n");
+
+
             if(available.isEmpty()){
                 break;
             }
@@ -38,6 +46,8 @@ public class SimpleDAGBroker extends AbstractDAGBroker{
 
         return getCurrentSchedule();
     }
+
+
 
 
 

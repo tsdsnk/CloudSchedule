@@ -55,6 +55,10 @@ public abstract class AbstractDAGBroker extends DatacenterBroker {
         return list;
     }
 
+    protected List<GraphNode> getAllNode(){
+        return new LinkedList<>(graphNodeList);
+    }
+
 
     protected Map<Vm, List<DAGNode>> getCurrentSchedule(){
         Map<Vm, List<DAGNode>> schedule = new HashMap<>();
@@ -168,10 +172,8 @@ public abstract class AbstractDAGBroker extends DatacenterBroker {
             if(!list.isEmpty()){
                 DAGNode node = list.get(0);
                 if(!availableList.contains(node)){
-                    Log.printLine("//////////////////// Error , Unvalid schedule when start");
                     continue;
                 }
-
                 if (!Log.isDisabled()) {
                     Log.printConcatLine(CloudSim.clock(), ": ", getName(), ": Sending cloudlet ",
                             node.getCloudletId(), " to VM #", vm.getId());
